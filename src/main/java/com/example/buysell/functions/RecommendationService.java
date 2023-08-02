@@ -5,14 +5,14 @@ import com.example.buysell.models.Product;
 import com.example.buysell.models.User;
 import com.example.buysell.repositories.ProductRepository;
 import com.example.buysell.repositories.UserRepository;
-import org.apache.commons.math3.linear.Array2DRowRealMatrix;
-import org.apache.commons.math3.linear.RealMatrix;
-import org.apache.commons.math3.linear.SingularValueDecomposition;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+
+import org.apache.commons.math3.linear.Array2DRowRealMatrix;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.SingularValueDecomposition;
 
 @Service
 public class RecommendationService {
@@ -27,36 +27,43 @@ public class RecommendationService {
     }
 
     public List<Long> getRecommendedProductIds(User targetUser) {
-        List<Product> products = productRepository.findAll();
         List<User> users = userRepository.findAll();
-        if (!isDataAvailableForRecommendation()) {
+        List<Product> products = productRepository.findAll();
+
+        if (!isDataAvailableForRecommendation(users, products)) {
             throw new DataUnavailableException("Insufficient data for recommendation.");
         }
 
-        // Creating a two-dimensional array to represent the user-item interaction matrix
-        double[][] userItemInteraction = new double[users.size()][products.size()];
+        int numUsers = users.size();
+        int numProducts = products.size();
 
-        // Filling the user-item interaction matrix with ratings
-        for (int i = 0; i < users.size(); i++) {
+        // Fetch user-item interactions from the database
+        Map<Long, Map<Long, Double>> userItemInteractions = getUserItemInteractions(users, products);
+
+        // Create the user-item interaction matrix
+        double[][] userItemInteraction = new double[numUsers][numProducts];
+        for (int i = 0; i < numUsers; i++) {
             User user = users.get(i);
-            for (int j = 0; j < products.size(); j++) {
+            Map<Long, Double> userInteractions = userItemInteractions.get(user.getId());
+            if (userInteractions == null) {
+                continue; // Skip users with no interactions
+            }
+
+            for (int j = 0; j < numProducts; j++) {
                 Product product = products.get(j);
-                // Replace this with the actual method to fetch ratings from your data
-                // For example, you could use product.getRatingsForUser(user) if such a method exists
-                // Here, I'm assuming a random rating between 1 and 5 for demonstration purposes
-                double rating = Math.random() * 5 + 1;
-                userItemInteraction[i][j] = rating;
+                double interaction = userInteractions.getOrDefault(product.getId(), 0.0);
+                userItemInteraction[i][j] = interaction;
             }
         }
 
-        // Step 2: SVD-based Matrix Factorization
+        // Perform Singular Value Decomposition (SVD)
         RealMatrix interactionMatrix = new Array2DRowRealMatrix(userItemInteraction);
         SingularValueDecomposition svd = new SingularValueDecomposition(interactionMatrix);
 
-        int k = 2; // Number of latent factors
-        RealMatrix U = svd.getU().getSubMatrix(0, users.size() - 1, 0, k - 1);
-        RealMatrix sigma = svd.getS().getSubMatrix(0, k - 1, 0, k - 1);
-        RealMatrix VT = svd.getVT().getSubMatrix(0, k - 1, 0, products.size() - 1);
+        int numLatentFactors = 2; // Number of latent factors
+        RealMatrix U = svd.getU().getSubMatrix(0, numUsers - 1, 0, numLatentFactors - 1);
+        RealMatrix sigma = svd.getS().getSubMatrix(0, numLatentFactors - 1, 0, numLatentFactors - 1);
+        RealMatrix VT = svd.getVT().getSubMatrix(0, numLatentFactors - 1, 0, numProducts - 1);
 
         // Find the index of the target user in the users list
         int targetUserIndex = users.indexOf(targetUser);
@@ -65,39 +72,44 @@ public class RecommendationService {
             return new ArrayList<>();
         }
 
-        // Step 3: Generate Recommendations for the target user
+        // Generate Recommendations for the target user
         RealMatrix predictedRatings = U.multiply(sigma).multiply(VT);
         double[] recommendations = predictedRatings.getRow(targetUserIndex);
 
         // Sort the recommendations in descending order
-        int[] sortedIndices = new int[recommendations.length];
-        for (int i = 0; i < recommendations.length; i++) {
-            sortedIndices[i] = i;
-        }
-        for (int i = 0; i < recommendations.length - 1; i++) {
-            for (int j = i + 1; j < recommendations.length; j++) {
-                if (recommendations[sortedIndices[i]] < recommendations[sortedIndices[j]]) {
-                    int temp = sortedIndices[i];
-                    sortedIndices[i] = sortedIndices[j];
-                    sortedIndices[j] = temp;
-                }
-            }
-        }
-
-        // Extract the recommended product IDs from the sorted indices
         List<Long> recommendedProductIds = new ArrayList<>();
-        for (int i = 0; i < sortedIndices.length; i++) {
-            int itemIndex = sortedIndices[i];
-            recommendedProductIds.add(products.get(itemIndex).getId());
+        for (int i = 0; i < recommendations.length; i++) {
+            recommendedProductIds.add(products.get(i).getId());
         }
 
         return recommendedProductIds;
     }
-    public boolean isDataAvailableForRecommendation() {
-        List<Product> products = productRepository.findAll();
-        List<User> users = userRepository.findAll();
 
-        return products.size() > 1 && users.size() > 1;
+    private boolean isDataAvailableForRecommendation(List<User> users, List<Product> products) {
+        return users.size() > 1 && products.size() > 1;
     }
 
+    // Fetch user-item interactions from the database
+    private Map<Long, Map<Long, Double>> getUserItemInteractions(List<User> users, List<Product> products) {
+        Map<Long, Map<Long, Double>> userItemInteractions = new HashMap<>();
+
+        for (User user : users) {
+            Map<Long, Double> userInteractions = new HashMap<>();
+            for (Product product : products) {
+                double interactionValue = getProductInteractionValue(user, product);
+                userInteractions.put(product.getId(), interactionValue);
+            }
+            userItemInteractions.put(user.getId(), userInteractions);
+        }
+
+        return userItemInteractions;
+    }
+
+    // Method to fetch the interaction value for a user and product from the database (you need to implement this)
+    private double getProductInteractionValue(User user, Product product) {
+        // Implement the logic to fetch the interaction value for the user and product from the database
+        // This could be based on the number of views, duration, likes, etc.
+        // For simplicity, I'll return a random value between 0 and 1 in this example
+        return Math.random();
+    }
 }

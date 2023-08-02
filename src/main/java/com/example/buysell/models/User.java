@@ -1,6 +1,7 @@
 package com.example.buysell.models;
 
 import com.example.buysell.models.enums.Role;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
@@ -8,6 +9,7 @@ import jakarta.persistence.*;
 import java.util.*;
 
 @Entity
+@RequiredArgsConstructor
 @Table(name = "users")
 public class User implements UserDetails {
     @Id
@@ -40,6 +42,22 @@ public class User implements UserDetails {
         product.setUser(this);
         products.add(product);
     }
+
+    ///////////////////////////////////////////////////////////////////////
+    @ElementCollection
+    @CollectionTable(name = "user_product_visits", joinColumns = @JoinColumn(name = "user_id"))
+    @MapKeyColumn(name = "product_id")
+    @Column(name = "visits")
+    private Map<Long, Integer> productVisits = new HashMap<>();
+
+    @ElementCollection
+    @CollectionTable(name = "user_product_duration", joinColumns = @JoinColumn(name = "user_id"))
+    @MapKeyColumn(name = "product_id")
+    @Column(name = "duration")
+    private Map<Long, Long> productDurations = new HashMap<>();
+
+    ///////////////////////////////////////////////////////////////////////
+
 
     public boolean isAdmin() {
         return roles.contains(Role.ROLE_ADMIN);
