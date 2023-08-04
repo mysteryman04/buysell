@@ -34,8 +34,7 @@ public class User implements UserDetails {
     @Enumerated(EnumType.STRING)
     private Set<Role> roles = new HashSet<>();
 
-    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER,
-            mappedBy = "user")
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, mappedBy = "user")
     private List<Product> products = new ArrayList<>();
 
     public void addProductToUser(Product product) {
@@ -44,13 +43,13 @@ public class User implements UserDetails {
     }
 
     ///////////////////////////////////////////////////////////////////////
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_product_visits", joinColumns = @JoinColumn(name = "user_id"))
     @MapKeyColumn(name = "product_id")
     @Column(name = "visits")
     private Map<Long, Integer> productVisits = new HashMap<>();
 
-    @ElementCollection
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_product_duration", joinColumns = @JoinColumn(name = "user_id"))
     @MapKeyColumn(name = "product_id")
     @Column(name = "duration")

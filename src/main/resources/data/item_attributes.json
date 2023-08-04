@@ -1,17 +1,1 @@
-{
-  "1": {
-    "name": "Item 1",
-    "category": "Electronics",
-    "price": 299.99
-  },
-  "2": {
-    "name": "Item 2",
-    "category": "Clothing",
-    "price": 49.95
-  },
-  "3": {
-    "name": "Item 3",
-    "category": "Books",
-    "price": 19.99
-  }
-}
+{}

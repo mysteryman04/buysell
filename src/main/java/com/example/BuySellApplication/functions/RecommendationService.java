@@ -5,112 +5,63 @@ import com.example.BuySellApplication.models.Product;
 import com.example.BuySellApplication.models.User;
 import com.example.BuySellApplication.repositories.ProductRepository;
 import com.example.BuySellApplication.repositories.UserRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.math3.linear.Array2DRowRealMatrix;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.linear.SingularValueDecomposition;
+import org.apache.tomcat.util.http.fileupload.FileUtils;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
 
-import org.apache.commons.math3.linear.Array2DRowRealMatrix;
-import org.apache.commons.math3.linear.RealMatrix;
-import org.apache.commons.math3.linear.SingularValueDecomposition;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.type.TypeReference;
+
 
 @Service
 @RequiredArgsConstructor
 public class RecommendationService {
+
     private final String userItemInteractionsFilePath = "data/user_item_interactions.json";
-    private final String itemAttributesFilePath = "item_attributes.json";
-
-    private final ProductRepository productRepository;
-    private final UserRepository userRepository;
-    private final ProductInteractionRepository productInteractionRepository;
-    private final ResourceLoader resourceLoader;
-
+    private final String itemAttributesFilePath = "data/item_attributes.json";
 
     private Map<Long, Map<Long, Double>> userItemInteractions;
     private Map<Long, Map<String, Object>> itemAttributes;
 
-    public void init() {
-        try {
-            // Load the resource using the ResourceLoader
-            Resource resource = resourceLoader.getResource("classpath:data/user_item_interactions.json");
+    private final ProductRepository productRepository;
+    private final UserRepository userRepository;
+    private final ResourceLoader resourceLoader;
 
-            // Use the resource's InputStream to read the file
-            try (InputStream inputStream = resource.getInputStream()) {
-                // Your logic to process the JSON data from the InputStream
-                ObjectMapper objectMapper = new ObjectMapper();
-                List<UserItemInteraction> userItemInteractions = objectMapper.readValue(inputStream, new TypeReference<List<UserItemInteraction>>() {});
-                // Do something with userItemInteractions
-                for (UserItemInteraction interaction : userItemInteractions) {
-                    // Process each user-item interaction
-                    System.out.println(interaction.getUserId() + " - " + interaction.getItemId());
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private List<Map<String, Object>> getUserItemInteractionsFromJSON() {
-        try {
-            Resource resource = new ClassPathResource("data/user_item_interactions.json");
-            InputStream inputStream = resource.getInputStream();
-
-            ObjectMapper objectMapper = new ObjectMapper();
-            TypeReference<List<Map<String, Object>>> typeReference = new TypeReference<>() {};
-            return objectMapper.readValue(inputStream, typeReference);
-        } catch (IOException e) {
-            e.printStackTrace();
-            // Handle the exception appropriately
-            return new ArrayList<>();
-        }
-    }
-    private Map<Long, Map<String, Object>> getItemAttributesFromJSON() {
-        try {
-            ClassLoader classLoader = getClass().getClassLoader();
-            File file = new File(Objects.requireNonNull(classLoader.getResource(itemAttributesFilePath)).getFile());
-            ObjectMapper objectMapper = new ObjectMapper();
-            TypeReference<Map<Long, Map<String, Object>>> typeReference = new TypeReference<>() {};
-            return objectMapper.readValue(file, typeReference);
-        } catch (IOException e) {
-            // Handle the exception appropriately (e.g., log the error, return a default value, etc.)
-            e.printStackTrace();
-            return null;
-        }
+    @PostConstruct
+    public void initializeRecommendationData() {
+        init();
     }
 
     public List<Long> getRecommendedProductIds(User targetUser) {
+        List<Product> products = targetUser.getProducts();
         if (userItemInteractions == null || itemAttributes == null) {
             throw new DataUnavailableException("Insufficient data for recommendation.");
         }
 
-        List<User> users = userRepository.findAll();
-        List<Product> products = productRepository.findAll();
+        int numUsers = 1; // Number of users will always be 1 since we are fetching only one user
+        int numProducts = products.size();
 
-        if (!isDataAvailableForRecommendation(users, products)) {
+        if (!isDataAvailableForRecommendation(Collections.singletonList(targetUser))) {
             throw new DataUnavailableException("Insufficient data for recommendation.");
         }
 
-        int numUsers = users.size();
-        int numProducts = products.size();
-
-        // Fetch user-item interactions from the database
-        Map<Long, Map<Long, Double>> userItemInteractions = getUserItemInteractions(users, products);
+        // Fetch user-item interactions from the JSON file
         List<Long> recommendedProductIds = new ArrayList<>();
-        // Create the user-item interaction matrix
         double[][] userItemInteraction = new double[numUsers][numProducts];
         for (int i = 0; i < numUsers; i++) {
-            User user = users.get(i);
-            Map<Long, Double> userInteractions = userItemInteractions.get(user.getId());
+            Map<Long, Double> userInteractions = userItemInteractions.get(targetUser.getId());
             if (userInteractions == null) {
                 continue; // Skip users with no interactions
             }
@@ -122,99 +73,110 @@ public class RecommendationService {
             }
         }
 
-        // Perform Singular Value Decomposition (SVD)
-        RealMatrix interactionMatrix = new Array2DRowRealMatrix(userItemInteraction);
-        SingularValueDecomposition svd = new SingularValueDecomposition(interactionMatrix);
+        // Perform Singular Value Decomposition (SVD) using Arrays
+        double[][] U = new double[numUsers][numUsers];
+        double[][] sigma = new double[numUsers][numProducts];
+        double[][] VT = new double[numProducts][numProducts];
 
-        int numLatentFactors = 2; // Number of latent factors
-        RealMatrix U = svd.getU().getSubMatrix(0, numUsers - 1, 0, numLatentFactors - 1);
-        RealMatrix sigma = svd.getS().getSubMatrix(0, numLatentFactors - 1, 0, numLatentFactors - 1);
-        RealMatrix VT = svd.getVT().getSubMatrix(0, numLatentFactors - 1, 0, numProducts - 1);
+        // Perform your own SVD implementation using Arrays here
+        // ...
 
-        // Find the index of the target user in the users list
-        int targetUserIndex = users.indexOf(targetUser);
-        if (targetUserIndex == -1) {
-            // The target user is not found in the list of users
+        // Find the index of the target user in the products list
+        int targetProductIndex = -1;
+        for (int j = 0; j < numProducts; j++) {
+            Product product = products.get(j);
+            if (product.getId().equals(targetUser.getId())) {
+                targetProductIndex = j;
+                break;
+            }
+        }
+        if (targetProductIndex == -1 || targetProductIndex >= numProducts) {
+            // The target user's products are not found in the list of products, or the index is out of range
             return new ArrayList<>();
         }
 
-        // Generate Recommendations for the target user
-        RealMatrix predictedRatings = U.multiply(sigma).multiply(VT);
-        double[] recommendations = predictedRatings.getRow(targetUserIndex);
+        // Generate Recommendations for the target user using Arrays
+        double[] predictedRatings = new double[numProducts];
+
+        // Perform your own matrix multiplication and SVD calculations here
+        // ...
 
         // Sort the recommendations in descending order
-
-        for (int i = 0; i < recommendations.length; i++) {
-            recommendedProductIds.add(products.get(i).getId());
+        Map<Double, Long> sortedRecommendations = new TreeMap<>(Collections.reverseOrder());
+        for (int i = 0; i < numProducts; i++) {
+            sortedRecommendations.put(predictedRatings[i], products.get(i).getId());
         }
+
+        recommendedProductIds.addAll(sortedRecommendations.values());
 
         return recommendedProductIds;
     }
 
-    // Other methods and helper functions (not shown here)
-
-    private boolean isDataAvailableForRecommendation(List<User> users, List<Product> products) {
-        return users.size() > 1 && products.size() > 1;
-    }
-
-    // ...
-
-    private Map<Long, Map<Long, Double>> getUserItemInteractions(List<User> users, List<Product> products) {
-        Map<Long, Map<Long, Double>> userItemInteractions = new HashMap<>();
-        for (User user : users) {
-            Map<Long, Double> itemInteractions = new HashMap<>();
-            for (Product product : products) {
-                double interactionValue = getProductInteractionValue(user, product);
-                itemInteractions.put(product.getId(), interactionValue);
+    public void init() {
+        try {
+            // Load the user-item interactions JSON data
+            Resource userItemInteractionsResource = new ClassPathResource(userItemInteractionsFilePath);
+            try (InputStream userItemInteractionsInputStream = userItemInteractionsResource.getInputStream()) {
+                ObjectMapper objectMapper = new ObjectMapper();
+                userItemInteractions = objectMapper.readValue(userItemInteractionsInputStream, new TypeReference<Map<Long, Map<Long, Double>>>() {});
+            } catch (IOException e) {
+                e.printStackTrace();
+                userItemInteractions = new HashMap<>(); // Initialize as empty if loading fails
             }
-            userItemInteractions.put(user.getId(), itemInteractions);
+
+            // Load the item attributes JSON data
+            Resource itemAttributesResource = new ClassPathResource(itemAttributesFilePath);
+            try (InputStream itemAttributesInputStream = itemAttributesResource.getInputStream()) {
+                ObjectMapper objectMapper = new ObjectMapper();
+                itemAttributes = objectMapper.readValue(itemAttributesInputStream, new TypeReference<Map<Long, Map<String, Object>>>() {});
+            } catch (IOException e) {
+                e.printStackTrace();
+                itemAttributes = new HashMap<>(); // Initialize as empty if loading fails
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        return userItemInteractions;
     }
 
-    private double getProductInteractionValue(User user, Product product) {
-        // Your implementation to calculate interaction value based on JSON data
-        // For example, you can use the itemAttributes map to fetch item data
-        Map<String, Object> itemData = itemAttributes.get(product.getId());
-        // Calculate the interaction value based on item data and user data
-        // For simplicity, let's assume a random interaction value here (0.0 to 5.0)
-        return Math.random() * 5.0;
-    }
-
-// ...
-
-    private Map<Long, Map<Long, Double>> getUserItemInteractionsFromJSON(String jsonFileName) throws IOException {
-        File file = new File(jsonFileName);
-        ObjectMapper objectMapper = new ObjectMapper();
-        return objectMapper.readValue(file, new TypeReference<Map<Long, Map<Long, Double>>>() {});
-    }
-
-    private Map<Long, Map<String, Object>> getItemAttributesFromJSON(String jsonFileName) throws IOException {
-        File file = new File(jsonFileName);
-        ObjectMapper objectMapper = new ObjectMapper();
-        return objectMapper.readValue(file, new TypeReference<Map<Long, Map<String, Object>>>() {});
-    }
-
-    private static class UserItemInteraction {
-        private String userId;
-        private String itemId;
-
-        // Getters and setters (or use Lombok annotations to generate them)
-
-        public String getUserId() {
-            return userId;
+    private boolean isDataAvailableForRecommendation(List<User> users) {
+        if (users.isEmpty()) {
+            return false;
         }
 
-        public void setUserId(String userId) {
-            this.userId = userId;
+        // Check if there is at least one product
+        for (User user : users) {
+            if (user.getProducts() != null && !user.getProducts().isEmpty()) {
+                return true;
+            }
         }
 
-        public String getItemId() {
-            return itemId;
-        }
+        return false;
+    }
 
-        public void setItemId(String itemId) {
-            this.itemId = itemId;
+    public void recordUserInteractionAndWriteToJson(Long userId, Long productId) {
+        // Record user interaction (similar to the previous method)
+        User user = userRepository.findById(userId).orElse(null);
+        Product product = productRepository.findById(productId).orElse(null);
+
+        if (user != null && product != null) {
+            ProductInteraction interaction = new ProductInteraction();
+            interaction.setUser(user);
+            interaction.setProduct(product);
+            interaction.setInteractionValue(1.0); // 1.0 indicates the user visited the page
+            interaction.setInteractionTimestamp(new Date()); // Set the interaction timestamp
+
+            // Save the new interaction to the userItemInteractions map
+            userItemInteractions.computeIfAbsent(userId, k -> new HashMap<>()).put(productId, 1.0); // 1.0 indicates the user visited the page
+
+            // Write the updated user-item interactions back to the JSON file
+            ObjectMapper objectMapper = new ObjectMapper();
+            File interactionsFile = new File(userItemInteractionsFilePath.substring("classpath:".length()));
+            try {
+                FileUtils.forceMkdirParent(interactionsFile);
+                objectMapper.writeValue(interactionsFile, userItemInteractions);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 }

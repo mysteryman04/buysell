@@ -12,23 +12,24 @@
         </div>
     </#if>
     <div class="card-columns">
-        <#if recommendedProducts?size == 0>
-            <h1 style="text-align: center">No recommendations found.</h1>
-        <#else>
-            <#list recommendedProducts as product>
-                <a href="/product/${product.id}" class="product-link">
-                    <div class="card text-white bg-dark my-3 product">
+        <#list recommendedProducts as product>
+            <a href="/product/${product.id}" class="product-link">
+                <div class="card text-white bg-dark my-3 product">
+                    <#if product.previewImageId??>
                         <img src="/images/${product.previewImageId}" class="card-img-top">
-                        <div class="card-body">
-                            <h5 class="card-title">${product.title}</h5>
-                            <p class="card-text">${product.price} tenge</p>
-                        </div>
-                        <div class="card-footer">
-                            ${product.city}
-                        </div>
+                    <#else>
+                        <div class="card-img-top not-found-image">Not found</div>
+                    </#if>
+                    <div class="card-body">
+                        <h5 class="card-title">${product.title}</h5>
+                        <p class="card-text">${product.price} Tenge</p>
                     </div>
-                </a>
-            </#list>
-        </#if>
+                    <div class="card-footer">
+                        ${product.city}
+                    </div>
+                </div>
+            </a>
+        </#list>
     </div>
+
 </@t.template>
