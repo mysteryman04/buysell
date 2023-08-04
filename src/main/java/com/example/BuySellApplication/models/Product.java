@@ -1,15 +1,12 @@
 package com.example.BuySellApplication.models;
 
 import lombok.Data;
-
 import jakarta.persistence.*;
 import lombok.RequiredArgsConstructor;
-
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+
 
 @Entity
 @Table(name = "products")

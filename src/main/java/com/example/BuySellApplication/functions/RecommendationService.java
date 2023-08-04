@@ -78,9 +78,6 @@ public class RecommendationService {
         double[][] sigma = new double[numUsers][numProducts];
         double[][] VT = new double[numProducts][numProducts];
 
-        // Perform your own SVD implementation using Arrays here
-        // ...
-
         // Find the index of the target user in the products list
         int targetProductIndex = -1;
         for (int j = 0; j < numProducts; j++) {
@@ -98,8 +95,6 @@ public class RecommendationService {
         // Generate Recommendations for the target user using Arrays
         double[] predictedRatings = new double[numProducts];
 
-        // Perform your own matrix multiplication and SVD calculations here
-        // ...
 
         // Sort the recommendations in descending order
         Map<Double, Long> sortedRecommendations = new TreeMap<>(Collections.reverseOrder());

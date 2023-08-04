@@ -26,11 +26,10 @@ public class ProductInteraction {
     @JoinColumn(name = "product_id")
     private Product product;
 
-    private double interactionValue; // You can use this to represent the user's interest or interaction strength
+    private double interactionValue;
 
     @Column(name = "interaction_timestamp")
-    private Date interactionTimestamp; // Timestamp for when the interaction occurred
+    private Date interactionTimestamp;
 
-    // Getters and Setters
 }
 
